@@ -41,16 +41,13 @@ export default function Home() {
   ];
 
   return (
-    <main className="pt-8">
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">
-            Workout Tracker
-          </h1>
-          <p className="text-[var(--muted)] mt-1 text-sm">
-            Track your progress. Get stronger.
-          </p>
-        </div>
+    <main className="pt-8 pb-12">
+      {/* Header */}
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold tracking-tight">Workout Tracker</h1>
+        <p className="text-[var(--muted)] mt-1 text-sm">
+          Track your progress. Get stronger.
+        </p>
       </div>
 
       {/* Quick Start */}
@@ -59,7 +56,7 @@ export default function Home() {
           <h2 className="text-sm font-medium text-[var(--muted)] uppercase tracking-wider mb-3">
             Start Workout
           </h2>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {routines.map((routine) => (
               <Link
                 key={routine.id}
@@ -101,17 +98,17 @@ export default function Home() {
             </Link>
           </div>
         ) : (
-          <div className="space-y-2">
+          <div className="grid grid-cols-1 gap-2">
             {days.map((day) => {
               const dayRoutines = routines.filter((r) => r.day === day);
               if (dayRoutines.length === 0) return null;
               return dayRoutines.map((routine) => (
                 <div
                   key={routine.id}
-                  className="bg-[var(--card)] rounded-xl p-4 border border-[var(--border)] flex items-center justify-between group"
+                  className="bg-[var(--card)] rounded-xl p-4 border border-[var(--border)] grid grid-cols-[1fr_auto] items-center gap-4"
                 >
-                  <div>
-                    <div className="font-medium">{routine.name}</div>
+                  <div className="min-w-0">
+                    <div className="font-medium truncate">{routine.name}</div>
                     <div className="text-sm text-[var(--muted)]">
                       {routine.day} &middot; {routine.exercises.length}{" "}
                       exercises
@@ -144,16 +141,18 @@ export default function Home() {
           <h2 className="text-sm font-medium text-[var(--muted)] uppercase tracking-wider mb-3">
             Recent Workouts
           </h2>
-          <div className="space-y-2">
+          <div className="grid grid-cols-1 gap-2">
             {recentLogs.map((log) => (
               <Link
                 key={log.id}
                 href={`/workout/${log.routineId}?log=${log.id}`}
                 className="block bg-[var(--card)] rounded-xl p-4 border border-[var(--border)] hover:border-[var(--accent)] transition-colors"
               >
-                <div className="flex items-center justify-between">
-                  <div>
-                    <div className="font-medium">{log.routineName}</div>
+                <div className="grid grid-cols-[1fr_auto] items-center gap-4">
+                  <div className="min-w-0">
+                    <div className="font-medium truncate">
+                      {log.routineName}
+                    </div>
                     <div className="text-sm text-[var(--muted)]">
                       {new Date(log.date).toLocaleDateString("en-US", {
                         weekday: "short",
@@ -163,7 +162,7 @@ export default function Home() {
                     </div>
                   </div>
                   {log.completed && (
-                    <span className="text-xs bg-green-500/20 text-[var(--success)] px-2 py-1 rounded-full">
+                    <span className="text-xs bg-green-500/20 text-[var(--success)] px-2 py-1 rounded-full whitespace-nowrap">
                       Completed
                     </span>
                   )}

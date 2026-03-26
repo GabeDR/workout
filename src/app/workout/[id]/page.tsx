@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, use } from "react";
+import { useState, useEffect, useRef, useCallback, use } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { ExerciseLog, SetLog, WorkoutLog } from "@/lib/types";
@@ -12,6 +12,58 @@ import {
   generateId,
 } from "@/lib/store";
 
+// --- Rest Timer Component ---
+function RestTimer({
+  running,
+  onDismiss,
+}: {
+  running: boolean;
+  onDismiss: () => void;
+}) {
+  const [seconds, setSeconds] = useState(0);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    if (running) {
+      setSeconds(0);
+      intervalRef.current = setInterval(() => {
+        setSeconds((s) => s + 1);
+      }, 1000);
+    } else {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+      setSeconds(0);
+    }
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
+  }, [running]);
+
+  if (!running) return null;
+
+  const mins = Math.floor(seconds / 60);
+  const secs = seconds % 60;
+
+  return (
+    <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-[var(--card)] border border-[var(--border)] rounded-2xl shadow-2xl shadow-black/50 px-6 py-4 flex items-center gap-4 min-w-[240px]">
+      <div className="flex-1">
+        <div className="text-[10px] text-[var(--muted)] uppercase tracking-wider mb-0.5">
+          Rest Timer
+        </div>
+        <div className="text-2xl font-bold font-mono tabular-nums">
+          {mins}:{secs.toString().padStart(2, "0")}
+        </div>
+      </div>
+      <button
+        onClick={onDismiss}
+        className="text-xs text-[var(--muted)] hover:text-white border border-[var(--border)] hover:border-[var(--accent)] rounded-lg px-3 py-2 transition-colors"
+      >
+        Dismiss
+      </button>
+    </div>
+  );
+}
+
+// --- Progress Indicator ---
 function ProgressIndicator({
   current,
   previous,
@@ -52,6 +104,7 @@ function ProgressIndicator({
   );
 }
 
+// --- Main Workout Page ---
 export default function WorkoutSession({
   params,
 }: {
@@ -64,6 +117,7 @@ export default function WorkoutSession({
 
   const [workout, setWorkout] = useState<WorkoutLog | null>(null);
   const [mounted, setMounted] = useState(false);
+  const [timerRunning, setTimerRunning] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -82,7 +136,6 @@ export default function WorkoutSession({
       }
     }
 
-    // Create new workout log
     const exerciseLogs: ExerciseLog[] = routine.exercises
       .sort((a, b) => a.order - b.order)
       .map((exercise) => {
@@ -119,76 +172,112 @@ export default function WorkoutSession({
     saveWorkoutLog(newWorkout);
   }, [routineId, logId, router]);
 
-  const updateSet = (
-    exerciseIndex: number,
-    setIndex: number,
-    updates: Partial<SetLog>
-  ) => {
-    if (!workout) return;
-    const updated = { ...workout };
-    updated.exercises = [...updated.exercises];
-    updated.exercises[exerciseIndex] = {
-      ...updated.exercises[exerciseIndex],
-    };
-    updated.exercises[exerciseIndex].sets = [
-      ...updated.exercises[exerciseIndex].sets,
-    ];
-    updated.exercises[exerciseIndex].sets[setIndex] = {
-      ...updated.exercises[exerciseIndex].sets[setIndex],
-      ...updates,
-    };
-    setWorkout(updated);
-    saveWorkoutLog(updated);
-  };
+  const updateSet = useCallback(
+    (exerciseIndex: number, setIndex: number, updates: Partial<SetLog>) => {
+      setWorkout((prev) => {
+        if (!prev) return prev;
+        const updated = { ...prev };
+        updated.exercises = [...updated.exercises];
+        updated.exercises[exerciseIndex] = {
+          ...updated.exercises[exerciseIndex],
+        };
+        updated.exercises[exerciseIndex].sets = [
+          ...updated.exercises[exerciseIndex].sets,
+        ];
+        updated.exercises[exerciseIndex].sets[setIndex] = {
+          ...updated.exercises[exerciseIndex].sets[setIndex],
+          ...updates,
+        };
+        saveWorkoutLog(updated);
+        return updated;
+      });
+    },
+    []
+  );
 
-  const toggleSetComplete = (exerciseIndex: number, setIndex: number) => {
-    if (!workout) return;
-    const set = workout.exercises[exerciseIndex].sets[setIndex];
-    updateSet(exerciseIndex, setIndex, { completed: !set.completed });
-  };
+  const toggleSetComplete = useCallback(
+    (exerciseIndex: number, setIndex: number) => {
+      setWorkout((prev) => {
+        if (!prev) return prev;
+        const wasCompleted =
+          prev.exercises[exerciseIndex].sets[setIndex].completed;
+        const updated = { ...prev };
+        updated.exercises = [...updated.exercises];
+        updated.exercises[exerciseIndex] = {
+          ...updated.exercises[exerciseIndex],
+        };
+        updated.exercises[exerciseIndex].sets = [
+          ...updated.exercises[exerciseIndex].sets,
+        ];
+        updated.exercises[exerciseIndex].sets[setIndex] = {
+          ...updated.exercises[exerciseIndex].sets[setIndex],
+          completed: !wasCompleted,
+        };
+        saveWorkoutLog(updated);
 
-  const addSet = (exerciseIndex: number) => {
-    if (!workout) return;
-    const updated = { ...workout };
-    updated.exercises = [...updated.exercises];
-    updated.exercises[exerciseIndex] = {
-      ...updated.exercises[exerciseIndex],
-    };
-    const lastSet =
-      updated.exercises[exerciseIndex].sets[
-        updated.exercises[exerciseIndex].sets.length - 1
+        // Start timer when marking a set as completed
+        if (!wasCompleted) {
+          setTimerRunning(false);
+          // Small delay so the state resets before starting again
+          setTimeout(() => setTimerRunning(true), 50);
+        }
+
+        return updated;
+      });
+    },
+    []
+  );
+
+  const addSet = useCallback((exerciseIndex: number) => {
+    setWorkout((prev) => {
+      if (!prev) return prev;
+      const updated = { ...prev };
+      updated.exercises = [...updated.exercises];
+      updated.exercises[exerciseIndex] = {
+        ...updated.exercises[exerciseIndex],
+      };
+      const lastSet =
+        updated.exercises[exerciseIndex].sets[
+          updated.exercises[exerciseIndex].sets.length - 1
+        ];
+      updated.exercises[exerciseIndex].sets = [
+        ...updated.exercises[exerciseIndex].sets,
+        {
+          reps: lastSet?.reps || 10,
+          weight: lastSet?.weight || 0,
+          completed: false,
+        },
       ];
-    updated.exercises[exerciseIndex].sets = [
-      ...updated.exercises[exerciseIndex].sets,
-      {
-        reps: lastSet?.reps || 10,
-        weight: lastSet?.weight || 0,
-        completed: false,
-      },
-    ];
-    setWorkout(updated);
-    saveWorkoutLog(updated);
-  };
+      saveWorkoutLog(updated);
+      return updated;
+    });
+  }, []);
 
-  const removeSet = (exerciseIndex: number, setIndex: number) => {
-    if (!workout) return;
-    const updated = { ...workout };
-    updated.exercises = [...updated.exercises];
-    updated.exercises[exerciseIndex] = {
-      ...updated.exercises[exerciseIndex],
-    };
-    updated.exercises[exerciseIndex].sets = updated.exercises[
-      exerciseIndex
-    ].sets.filter((_, i) => i !== setIndex);
-    setWorkout(updated);
-    saveWorkoutLog(updated);
-  };
+  const removeSet = useCallback(
+    (exerciseIndex: number, setIndex: number) => {
+      setWorkout((prev) => {
+        if (!prev) return prev;
+        const updated = { ...prev };
+        updated.exercises = [...updated.exercises];
+        updated.exercises[exerciseIndex] = {
+          ...updated.exercises[exerciseIndex],
+        };
+        updated.exercises[exerciseIndex].sets = updated.exercises[
+          exerciseIndex
+        ].sets.filter((_, i) => i !== setIndex);
+        saveWorkoutLog(updated);
+        return updated;
+      });
+    },
+    []
+  );
 
   const finishWorkout = () => {
     if (!workout) return;
     const updated = { ...workout, completed: true };
     saveWorkoutLog(updated);
     setWorkout(updated);
+    setTimerRunning(false);
     router.push("/");
   };
 
@@ -205,15 +294,18 @@ export default function WorkoutSession({
   const progress = totalSets > 0 ? (completedSets / totalSets) * 100 : 0;
 
   return (
-    <main className="pt-8">
-      <div className="flex items-center justify-between mb-2">
+    <main className="pt-8 pb-28">
+      {/* Header */}
+      <div className="grid grid-cols-[auto_1fr_auto] items-center mb-2">
         <Link
           href="/"
           className="text-[var(--muted)] hover:text-white text-sm"
         >
           &larr; Back
         </Link>
-        <h1 className="text-xl font-bold">{workout.routineName}</h1>
+        <h1 className="text-xl font-bold text-center truncate px-2">
+          {workout.routineName}
+        </h1>
         <div className="w-12" />
       </div>
 
@@ -227,9 +319,9 @@ export default function WorkoutSession({
 
       {/* Progress Bar */}
       <div className="mb-6">
-        <div className="flex justify-between text-xs text-[var(--muted)] mb-1">
+        <div className="grid grid-cols-2 text-xs text-[var(--muted)] mb-1">
           <span>Progress</span>
-          <span>
+          <span className="text-right">
             {completedSets}/{totalSets} sets
           </span>
         </div>
@@ -242,11 +334,9 @@ export default function WorkoutSession({
       </div>
 
       {/* Exercises */}
-      <div className="space-y-4">
+      <div className="grid grid-cols-1 gap-4">
         {workout.exercises.map((exercise, exerciseIndex) => {
-          const completedExSets = exercise.sets.filter(
-            (s) => s.completed
-          );
+          const completedExSets = exercise.sets.filter((s) => s.completed);
           const avgReps =
             completedExSets.length > 0
               ? Math.round(
@@ -269,43 +359,43 @@ export default function WorkoutSession({
               key={exercise.exerciseId}
               className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-4"
             >
-              <div className="flex items-center justify-between mb-1">
-                <h3 className="font-semibold">{exercise.exerciseName}</h3>
-                <span className="text-xs text-[var(--muted)]">
-                  Target: {exercise.targetSets}x{exercise.targetReps} @{" "}
+              {/* Exercise header */}
+              <div className="grid grid-cols-[1fr_auto] items-start gap-2 mb-1">
+                <h3 className="font-semibold truncate">
+                  {exercise.exerciseName}
+                </h3>
+                <span className="text-xs text-[var(--muted)] whitespace-nowrap">
+                  {exercise.targetSets}x{exercise.targetReps} @{" "}
                   {exercise.targetWeight} lbs
                 </span>
               </div>
 
               {previousData && (
                 <div className="text-xs text-[var(--muted)] mb-2">
-                  Last: {previousData.sets} sets, ~{previousData.reps}{" "}
-                  reps @ {previousData.weight} lbs
+                  Last: {previousData.sets} sets, ~{previousData.reps} reps @{" "}
+                  {previousData.weight} lbs
                 </div>
               )}
 
               <ProgressIndicator
-                current={{
-                  totalReps: avgReps,
-                  maxWeight,
-                }}
+                current={{ totalReps: avgReps, maxWeight }}
                 previous={previousData}
               />
 
               {/* Sets Header */}
-              <div className="grid grid-cols-[2rem_1fr_1fr_2.5rem] gap-2 mt-3 mb-1 text-[10px] text-[var(--muted)] uppercase tracking-wider">
-                <span>Set</span>
+              <div className="grid grid-cols-[2.5rem_1fr_1fr_2rem] gap-2 mt-3 mb-1 text-[10px] text-[var(--muted)] uppercase tracking-wider">
+                <span className="text-center">Set</span>
                 <span className="text-center">Weight</span>
                 <span className="text-center">Reps</span>
                 <span />
               </div>
 
               {/* Sets */}
-              <div className="space-y-2">
+              <div className="grid grid-cols-1 gap-2">
                 {exercise.sets.map((set, setIndex) => (
                   <div
                     key={setIndex}
-                    className={`grid grid-cols-[2rem_1fr_1fr_2.5rem] gap-2 items-center ${
+                    className={`grid grid-cols-[2.5rem_1fr_1fr_2rem] gap-2 items-center ${
                       set.completed ? "opacity-60" : ""
                     }`}
                   >
@@ -313,10 +403,10 @@ export default function WorkoutSession({
                       onClick={() =>
                         toggleSetComplete(exerciseIndex, setIndex)
                       }
-                      className={`w-7 h-7 rounded-lg border text-xs font-mono flex items-center justify-center transition-colors ${
+                      className={`w-8 h-8 rounded-lg border text-xs font-mono flex items-center justify-center transition-all mx-auto ${
                         set.completed
-                          ? "bg-[var(--success)] border-[var(--success)] text-white"
-                          : "border-[var(--border)] text-[var(--muted)] hover:border-[var(--accent)]"
+                          ? "bg-[var(--success)] border-[var(--success)] text-white scale-95"
+                          : "border-[var(--border)] text-[var(--muted)] hover:border-[var(--accent)] hover:text-[var(--accent)]"
                       }`}
                     >
                       {set.completed ? "\u2713" : setIndex + 1}
@@ -330,7 +420,7 @@ export default function WorkoutSession({
                           weight: parseFloat(e.target.value) || 0,
                         })
                       }
-                      className="bg-[var(--background)] border border-[var(--border)] rounded-lg px-3 py-2 text-center text-white focus:outline-none focus:border-[var(--accent)] transition-colors text-sm"
+                      className="w-full bg-[var(--background)] border border-[var(--border)] rounded-lg px-2 py-2 text-center text-white focus:outline-none focus:border-[var(--accent)] transition-colors text-sm"
                     />
 
                     <input
@@ -341,14 +431,12 @@ export default function WorkoutSession({
                           reps: parseInt(e.target.value) || 0,
                         })
                       }
-                      className="bg-[var(--background)] border border-[var(--border)] rounded-lg px-3 py-2 text-center text-white focus:outline-none focus:border-[var(--accent)] transition-colors text-sm"
+                      className="w-full bg-[var(--background)] border border-[var(--border)] rounded-lg px-2 py-2 text-center text-white focus:outline-none focus:border-[var(--accent)] transition-colors text-sm"
                     />
 
                     <button
-                      onClick={() =>
-                        removeSet(exerciseIndex, setIndex)
-                      }
-                      className="text-[var(--muted)] hover:text-[var(--danger)] text-xs transition-colors p-1"
+                      onClick={() => removeSet(exerciseIndex, setIndex)}
+                      className="text-[var(--muted)] hover:text-[var(--danger)] text-xs transition-colors p-1 flex items-center justify-center"
                     >
                       &#10005;
                     </button>
@@ -377,6 +465,7 @@ export default function WorkoutSession({
         </button>
       )}
 
+      {/* Completed Summary */}
       {workout.completed && (
         <div className="mt-6 bg-green-500/10 border border-green-500/30 rounded-xl p-4 text-center">
           <div className="text-[var(--success)] font-semibold text-lg mb-1">
@@ -386,8 +475,7 @@ export default function WorkoutSession({
             {completedSets} sets completed
           </div>
 
-          {/* Progressive Overload Summary */}
-          <div className="mt-4 space-y-2">
+          <div className="mt-4 grid grid-cols-1 gap-2">
             {workout.exercises.map((exercise) => {
               const completedExSets = exercise.sets.filter(
                 (s) => s.completed
@@ -417,19 +505,19 @@ export default function WorkoutSession({
                   key={exercise.exerciseId}
                   className="bg-[var(--card)] rounded-lg p-3 text-left"
                 >
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium">
+                  <div className="grid grid-cols-[1fr_auto] items-center gap-2">
+                    <span className="text-sm font-medium truncate">
                       {exercise.exerciseName}
                     </span>
                     {allTargetMet && (
-                      <span className="text-[10px] bg-[var(--accent)]/20 text-[var(--accent-hover)] px-2 py-0.5 rounded-full">
-                        Target Met - Increase Weight!
+                      <span className="text-[10px] bg-[var(--accent)]/20 text-[var(--accent-hover)] px-2 py-0.5 rounded-full whitespace-nowrap">
+                        Increase Weight!
                       </span>
                     )}
                   </div>
                   <div className="text-xs text-[var(--muted)] mt-1">
-                    {completedExSets.length} sets &middot; ~{avgReps}{" "}
-                    reps &middot; {maxWeight} lbs
+                    {completedExSets.length} sets &middot; ~{avgReps} reps
+                    &middot; {maxWeight} lbs
                   </div>
                   <ProgressIndicator
                     current={{ totalReps: avgReps, maxWeight }}
@@ -441,6 +529,12 @@ export default function WorkoutSession({
           </div>
         </div>
       )}
+
+      {/* Rest Timer - floating at bottom */}
+      <RestTimer
+        running={timerRunning}
+        onDismiss={() => setTimerRunning(false)}
+      />
     </main>
   );
 }

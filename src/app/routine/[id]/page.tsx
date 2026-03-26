@@ -93,69 +93,69 @@ export default function RoutineEditor({
   ];
 
   return (
-    <main className="pt-8">
-      <div className="flex items-center justify-between mb-6">
+    <main className="pt-8 pb-12">
+      {/* Header */}
+      <div className="grid grid-cols-[auto_1fr_auto] items-center mb-6">
         <Link
           href="/"
           className="text-[var(--muted)] hover:text-white text-sm"
         >
           &larr; Back
         </Link>
-        <h1 className="text-xl font-bold">
+        <h1 className="text-xl font-bold text-center">
           {isNew ? "New Routine" : "Edit Routine"}
         </h1>
         <div className="w-12" />
       </div>
 
-      <div className="space-y-4">
-        {/* Routine Name */}
-        <div>
-          <label className="text-xs text-[var(--muted)] uppercase tracking-wider block mb-1.5">
-            Routine Name
-          </label>
-          <input
-            type="text"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="e.g., Push Day"
-            className="w-full bg-[var(--card)] border border-[var(--border)] rounded-lg px-4 py-3 text-white placeholder:text-[var(--muted)] focus:outline-none focus:border-[var(--accent)] transition-colors"
-          />
-        </div>
-
-        {/* Day Select */}
-        <div>
-          <label className="text-xs text-[var(--muted)] uppercase tracking-wider block mb-1.5">
-            Day
-          </label>
-          <select
-            value={day}
-            onChange={(e) => setDay(e.target.value)}
-            className="w-full bg-[var(--card)] border border-[var(--border)] rounded-lg px-4 py-3 text-white focus:outline-none focus:border-[var(--accent)] transition-colors appearance-none"
-          >
-            {days.map((d) => (
-              <option key={d} value={d}>
-                {d}
-              </option>
-            ))}
-          </select>
+      <div className="grid grid-cols-1 gap-4">
+        {/* Name & Day */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label className="text-xs text-[var(--muted)] uppercase tracking-wider block mb-1.5">
+              Routine Name
+            </label>
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="e.g., Push Day"
+              className="w-full bg-[var(--card)] border border-[var(--border)] rounded-lg px-4 py-3 text-white placeholder:text-[var(--muted)] focus:outline-none focus:border-[var(--accent)] transition-colors"
+            />
+          </div>
+          <div>
+            <label className="text-xs text-[var(--muted)] uppercase tracking-wider block mb-1.5">
+              Day
+            </label>
+            <select
+              value={day}
+              onChange={(e) => setDay(e.target.value)}
+              className="w-full bg-[var(--card)] border border-[var(--border)] rounded-lg px-4 py-3 text-white focus:outline-none focus:border-[var(--accent)] transition-colors appearance-none"
+            >
+              {days.map((d) => (
+                <option key={d} value={d}>
+                  {d}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
 
         {/* Exercises */}
         <div>
-          <div className="flex items-center justify-between mb-3">
-            <label className="text-xs text-[var(--muted)] uppercase tracking-wider">
-              Exercises
-            </label>
-          </div>
+          <label className="text-xs text-[var(--muted)] uppercase tracking-wider block mb-3">
+            Exercises
+          </label>
 
-          <div className="space-y-3">
+          <div className="grid grid-cols-1 gap-3">
             {exercises.map((exercise, index) => (
               <div
                 key={exercise.id}
                 className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-4"
               >
-                <div className="flex items-center gap-2 mb-3">
-                  <span className="text-xs text-[var(--muted)] font-mono w-5">
+                {/* Exercise name row */}
+                <div className="grid grid-cols-[1.5rem_1fr_auto] items-center gap-2 mb-3">
+                  <span className="text-xs text-[var(--muted)] font-mono">
                     {index + 1}.
                   </span>
                   <input
@@ -165,7 +165,7 @@ export default function RoutineEditor({
                       updateExercise(index, { name: e.target.value })
                     }
                     placeholder="Exercise name"
-                    className="flex-1 bg-transparent border-b border-[var(--border)] pb-1 text-white placeholder:text-[var(--muted)] focus:outline-none focus:border-[var(--accent)] transition-colors"
+                    className="w-full bg-transparent border-b border-[var(--border)] pb-1 text-white placeholder:text-[var(--muted)] focus:outline-none focus:border-[var(--accent)] transition-colors"
                   />
                   <div className="flex gap-1">
                     <button
@@ -191,6 +191,7 @@ export default function RoutineEditor({
                   </div>
                 </div>
 
+                {/* Sets / Reps / Weight */}
                 <div className="grid grid-cols-3 gap-3">
                   <div>
                     <label className="text-[10px] text-[var(--muted)] uppercase block mb-1">
@@ -254,7 +255,7 @@ export default function RoutineEditor({
         <button
           onClick={handleSave}
           disabled={!name.trim()}
-          className="w-full bg-[var(--accent)] hover:bg-[var(--accent-hover)] disabled:opacity-50 text-white font-medium py-3 rounded-xl transition-colors mt-6"
+          className="w-full bg-[var(--accent)] hover:bg-[var(--accent-hover)] disabled:opacity-50 text-white font-medium py-3 rounded-xl transition-colors mt-2"
         >
           {isNew ? "Create Routine" : "Save Changes"}
         </button>
